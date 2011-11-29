@@ -1,7 +1,4 @@
 apply plugin: 'java'
-apply plugin: 'idea'
-sourceCompatibility = '1.6'
-targetCompatilibity = '1.6'
 
 import groovyx.gpars.GParsPool
 import groovy.json.JsonSlurper
@@ -21,24 +18,13 @@ repositories {
 	mavenCentral()
 }
 
-dependencies {
-    testCompile('junit:junit:4.8.1')
+task ghc << {
+	Process p = "ghc MyBot.hs".execute()
+	p.consumeProcess(System.err, System.err)
+	assert p.waitFor() == 0
 }
 
-jar {
-    baseName = 'MyBot'
-    manifest {
-        attributes("Main-Class": "MyBot")
-    }
-}
-
-task srcZip(type: Zip) {
-    classifier = 'src'
-    from sourceSets*.allSource
-    excludes = ["**/*Test.java"]
-}
-
-task rate(dependsOn: jar) << {
+task rate(dependsOn: ghc) << {
 	def bots = ["merv-v11", "MyBot-5", "merv-v3", "flightBot-v6"]
 	def maps = [
 		[name:"maze/maze_02p_02", maze:true, players:2],
@@ -74,7 +60,7 @@ task rate(dependsOn: jar) << {
 			def players = pairing.map.players	
 			def args = ["python",
 				"tools/playgame.py"]
-			args << "java -jar build/libs/MyBot.jar"
+			args << "MyBot"
 			(players-1).times { i -> args << "java -jar bots/${bots[i%bots.size()]}.jar" }			
 			args.addAll(
 				["--map_file",
@@ -165,4 +151,5 @@ tasks.addRule("Pattern: log<GameID>") { String taskName ->
 			println new File("game_logs/${taskName - 'log'}.bot1.error").text
         }
     }
-}
+}`
+
