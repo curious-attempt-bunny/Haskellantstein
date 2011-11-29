@@ -1,10 +1,9 @@
-*.iml
-*.ipr
-*.iws
 .gradle/
 build/
 game_logs/
-out/
 bots/bot.log
 */*.pyc
 */*/*.pyc
+MyBot
+*.o
+*.hi

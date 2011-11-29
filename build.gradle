@@ -20,7 +20,7 @@ repositories {
 
 task ghc << {
 	Process p = "ghc MyBot.hs".execute()
-	p.consumeProcess(System.err, System.err)
+	p.consumeProcessOutput(System.err, System.err)
 	assert p.waitFor() == 0
 }
 
@@ -151,5 +151,5 @@ tasks.addRule("Pattern: log<GameID>") { String taskName ->
 			println new File("game_logs/${taskName - 'log'}.bot1.error").text
         }
     }
-}`
+}
 
