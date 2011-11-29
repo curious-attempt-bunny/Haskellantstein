@@ -6,20 +6,14 @@ import System.IO
 
 import Ants
 
-tryOrder :: World -> [Order] -> Maybe Order
-tryOrder w = find (passable w)
-
-generateOrders :: Ant -> [Order]
-generateOrders a = map (Order a) [North .. West]
-
-ordersForFood :: GameState -> [Order]
-ordersForFood gs = orderForFood (world gs) (food gs) (ants gs)
+gameCrunch :: Wavefront -> [Order]
+gameCrunch wavefront
+	| isDone wavefront = worder wavefront
+	| otherwise        = gameCrunch $ expandWavefront wavefront
 	
 doTurn :: GameParams -> GameState -> IO [Order]
 doTurn gp gs = do
---  let generatedOrders = map generateOrders $ myAnts $ ants gs
---      orders = mapMaybe (tryOrder (world gs)) generatedOrders
-  let orders = ordersForFood gs
+  let orders = gameCrunch $ createWavefront (world gs) (ants gs) (food gs)
   return orders
 
 main :: IO ()

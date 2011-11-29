@@ -8,6 +8,7 @@ module Ants
   , GameState (..)
   , Order (..)
   , World
+  , Wavefront
 
     -- Utility functions
   , myAnts -- return list of my Ants
@@ -22,8 +23,10 @@ module Ants
 
   , orderForFood
 
-  -- TODO implement the following functions according to the starter pack guide
-  --, direction
+  , createWavefront
+  , isDone
+  , expandWavefront
+  , worder
   ) where
 
 import Data.Array
@@ -40,10 +43,10 @@ type Col = Int
 type Visible = Bool
 type Point = (Row, Col)
 type Food = Point
-type World = Array Point MetaTile -- what does this mean? TODO
+type World = Array Point MetaTile 
 
 colBound :: World -> Col
-colBound = col . snd . bounds  -- what is . here ? -- DONE: the partial function: col ( snd ( bounds _ ))
+colBound = col . snd . bounds
 
 rowBound :: World -> Row
 rowBound = row . snd . bounds
@@ -90,13 +93,14 @@ data Ant = Ant
   , owner :: Owner
   } deriving (Show, Eq)
 
-data Direction = North | East | South | West deriving (Bounded, Eq, Enum)
+data Direction = North | East | South | West | Stay deriving (Bounded, Eq, Enum)
 
 instance Show Direction where
   show North = "N"
   show East  = "E"
   show South = "S"
   show West  = "W"
+  show Stay  = "-"
 
 -- Representation of an order
 data Order = Order
@@ -471,3 +475,57 @@ orderForFood' world expansions ants orders = orderForFood' world (map (\(f,e) ->
 		remainingExpansions = filter (\(food, _) -> not $ any (==food) $ map (fst . expansion) matches') expansions
 		remainingAnts = ants \\ (map antMatch matches')
 		newOrders = map (\match -> Order { ant=antMatch match, direction=antDirection match }) matches'
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+data Wavefront = Wavefront { wworld :: World, wants :: [Ant], wghost :: [Ghost], worder :: [Order] }
+
+data Ghost = Ghost { gpoint :: Point, gdirection :: Direction, gorigin :: Point } deriving (Eq)
+
+createWavefront :: World -> [Ant] -> [Food] -> Wavefront
+createWavefront world ants food = Wavefront { wworld=world, wants=ants, wghost=map createGhost food, worder=[] }
+
+createGhost :: Point -> Ghost
+createGhost origin = Ghost { gpoint=origin, gdirection=Stay, gorigin=origin }
+
+-- TODO are old ghosts missing?
+expandWavefront :: Wavefront -> Wavefront
+expandWavefront wavefront = Wavefront { wworld=wworld wavefront, wants=newAnts, wghost=newGhosts'', worder=newOrders} 
+	where
+		newGhosts = concatMap walkGhost $ wghost wavefront -- TODO eliminate duplicates
+		newGhosts' = nubBy (\g1 g2 -> gpoint g1 == gpoint g2) newGhosts
+		antsAndGhosts = [(ant, ghost) | ant <- wants wavefront, ghost <- newGhosts', point ant == gpoint ghost]
+		newAnts = wants wavefront \\ map fst antsAndGhosts
+		newOrders = map (\(ant, ghost) -> Order { ant=ant, direction=opposite $ gdirection ghost } ) antsAndGhosts
+		matchedOrigin = map (gorigin . snd) antsAndGhosts
+		newGhosts'' = filter (\ghost -> not $ gorigin ghost `elem` matchedOrigin) newGhosts'
+		
+walkGhost :: Ghost -> [Ghost]
+walkGhost ghost = [Ghost { gpoint=move direction $ gpoint ghost, gdirection=direction, gorigin=gorigin ghost } |
+						direction <- [North, East, South, West] ]
+						-- TODO use passable to limit choices!
+		
+opposite :: Direction -> Direction
+opposite North = South
+opposite East  = West
+opposite South = North
+opposite West  = East
+
+isDone :: Wavefront -> Bool
+isDone wavefront 
+	| wants wavefront == []  = True
+	| wghost wavefront == [] = True
+	| otherwise				 = False
+		
