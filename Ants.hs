@@ -21,8 +21,6 @@ module Ants
     -- main function
   , game
 
-  , orderForFood
-
   , createWavefront
   , isDone
   , expandWavefront
@@ -431,86 +429,40 @@ game doTurn = do
 
 -- vim: set expandtab:
 
-expand w p = ps':(expand' w ps' [])
-	where ps' = map (\(x,y) -> (x,y,North)) [p]
-
-expand' w ps ps' = next:(expand' w next ps)
-	where
-		move (x,y,_) North = (x-1, y, South)
-		move (x,y,_) East  = (x, y+1, West)
-		move (x,y,_) South = (x+1, y, North)
-		move (x,y,_) West  = (x, y-1, East)
-		notIn (x,y,_) ps = not $ any (\(px, py, _) -> px == x && py == y) ps
-		expandable (x,y,_) = tile (w %! (x,y)) /= Water && tile (w %! (x,y)) /= MyTile
-		next = nub [move p dir |
-			p <- ps,
-			dir <- [North, East, South, West],
-			expandable p,
-			(move p dir) `notIn` ps',
-			(move p dir) `notIn` ps]
-
-orderForFood :: World -> [Food] -> [Ant] -> [Order]
-orderForFood world food ants = orderForFood' world (zip food $ map (expand world) food) ants []
-
--- [food] + [ant] ->
--- [expansion] + [ant] -> 
--- 	A. [(expansion, ant)] -> ([expansion], [ant], [order])
--- 	B. [expansion] + [ant] + [order]
-
-data Match = Match
-  { expansion :: (Point, [[(Row, Col, Direction)]])
-  , antMatch :: Ant
-  , antDirection :: Direction
-  } deriving (Show)
-
-orderForFood' _ [] _ orders = orders
-orderForFood' _ _ [] orders = orders
-orderForFood' world expansions ants orders = orderForFood' world (map (\(f,e) -> (f, tail e)) remainingExpansions) remainingAnts $ newOrders ++ orders
-	where
-		matches = [Match {expansion=expansion, antMatch=ant, antDirection=dir} |
-					expansion <- expansions,
-					(x,y,dir) <- (filter (\(x,y,_) -> any (==(x,y)) (map point ants)) $ head $ snd expansion),
-					ant <- filter (\ant -> (point ant) == (x,y)) ants]
-		matches' = nubBy (\a b -> antMatch a == antMatch b) matches
-		remainingExpansions = filter (\(food, _) -> not $ any (==food) $ map (fst . expansion) matches') expansions
-		remainingAnts = ants \\ (map antMatch matches')
-		newOrders = map (\match -> Order { ant=antMatch match, direction=antDirection match }) matches'
+-- Da Brainz:
 		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-data Wavefront = Wavefront { wworld :: World, wants :: [Ant], wghost :: [Ghost], worder :: [Order] }
+data Wavefront = Wavefront { wworld :: World, wants :: [Ant], wghost :: [Ghost], woldghost :: [Ghost], worder :: [Order] }
 
 data Ghost = Ghost { gpoint :: Point, gdirection :: Direction, gorigin :: Point } deriving (Eq)
 
 createWavefront :: World -> [Ant] -> [Food] -> Wavefront
-createWavefront world ants food = Wavefront { wworld=world, wants=ants, wghost=map createGhost food, worder=[] }
+createWavefront world ants food = Wavefront { wworld=world, wants=ants, wghost=map createGhost food, worder=[], woldghost=[] }
 
 createGhost :: Point -> Ghost
 createGhost origin = Ghost { gpoint=origin, gdirection=Stay, gorigin=origin }
 
--- TODO are old ghosts missing?
+deleteGhosts :: [Ghost] -> [Ghost] -> [Ghost]
+deleteGhosts toKeep toRemove = filter (\ghost -> (gpoint ghost) `notElem` (map gpoint toRemove)) toKeep
+
 expandWavefront :: Wavefront -> Wavefront
-expandWavefront wavefront = Wavefront { wworld=wworld wavefront, wants=newAnts, wghost=newGhosts'', worder=newOrders} 
+expandWavefront wavefront = Wavefront { wworld=wworld wavefront,
+										wants=newAnts,
+										wghost=newGhosts,
+										worder=newOrders ++ worder wavefront,
+										woldghost=wghost wavefront } 
 	where
-		newGhosts = concatMap walkGhost $ wghost wavefront -- TODO eliminate duplicates
-		newGhosts' = nubBy (\g1 g2 -> gpoint g1 == gpoint g2) newGhosts
-		antsAndGhosts = [(ant, ghost) | ant <- wants wavefront, ghost <- newGhosts', point ant == gpoint ghost]
+		walkedGhosts = concatMap walkGhost $ wghost wavefront -- create next wave of ghosts
+		walkedGhostsNoDupes = nubBy (\g1 g2 -> gpoint g1 == gpoint g2) walkedGhosts -- eliminate dupes within the new wave
+		ghostsWithoutOld = deleteGhosts walkedGhostsNoDupes $ woldghost wavefront -- eliminate those from previous wave
+		ghostsWithoutCurrent = deleteGhosts ghostsWithoutOld $ wghost wavefront -- eliminate those from previous wave
+		antsAndGhosts = [(ant, ghost) |
+							ant <- wants wavefront,
+							ghost <- ghostsWithoutCurrent,
+							point ant == gpoint ghost]
 		newAnts = wants wavefront \\ map fst antsAndGhosts
 		newOrders = map (\(ant, ghost) -> Order { ant=ant, direction=opposite $ gdirection ghost } ) antsAndGhosts
 		matchedOrigin = map (gorigin . snd) antsAndGhosts
-		newGhosts'' = filter (\ghost -> not $ gorigin ghost `elem` matchedOrigin) newGhosts'
+		newGhosts = filter (\ghost -> gorigin ghost `notElem` matchedOrigin) ghostsWithoutCurrent
 		
 walkGhost :: Ghost -> [Ghost]
 walkGhost ghost = [Ghost { gpoint=move direction $ gpoint ghost, gdirection=direction, gorigin=gorigin ghost } |
@@ -522,6 +474,7 @@ opposite North = South
 opposite East  = West
 opposite South = North
 opposite West  = East
+opposite Stay  = Stay
 
 isDone :: Wavefront -> Bool
 isDone wavefront 

@@ -1,1 +1,2 @@
-python tools/playgame.py "MyBot" "java -jar bots/merv-v3.jar" --map_file tools/maps/random_walk/random_walk_02p_01.map --log_dir game_logs --turns 1000 --player_seed 7 --verbose -e
+ghc MyBot.hs && \
+python tools/playgame.py "MyBot" "java -jar bots/merv-v3.jar" --map_file tools/maps/random_walk/random_walk_02p_01.map --log_dir game_logs --turns 1000 --player_seed 7 --verbose -e -o -E -O --engine_seed=1234
